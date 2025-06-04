@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const { UserRepository, User } = require('../models/user'); // Ajusta la ruta según tu estructura
 const cookieParser = require('cookie-parser');
+require('dotenv').config();
 const SECRET_KEY = process.env.JWT_SECRET;
 
 const app = express();
@@ -35,18 +36,25 @@ router.post('/login', async (req, res) => {
   try {
     const user = await UserRepository.login({email, password});
 
-    // Genera el JWT
+    if (!user || !user.email) {
+      return res.status(401).json({ message: 'Invalid user data returned from login' });
+    }
+
+    console.log('User data:', user); // Debug log
+    console.log('SECRET_KEY exists:', !!SECRET_KEY); // Debug log
+
     const token = jwt.sign({ email: user.email }, SECRET_KEY, { expiresIn: '1h' });
     res
       .cookie('access_token', token, {
-        httpOnly:  true,
+        httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict'
       })
-      .send({ user, token });
+      .json({ user, token });
 
   } catch (error) {
-    res.status(401).send(error.message );
+    console.error('Login error:', error); // Debug log
+    res.status(401).json({ message: error.message });
   }
 });
 
