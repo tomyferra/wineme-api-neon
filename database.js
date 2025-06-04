@@ -1,8 +1,17 @@
-// conexion a la base de datos
-const mongoose = require('mongoose');
-require('dotenv').config();
-mongoose.connect(process.env.MONG_URI)
-  .then(db => console.log('DB is connected'))
-  .catch(err => console.error(err));
 
-module.exports = mongoose;
+const { Pool } = require('pg');
+require('dotenv').config();
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false // Required for Neon connection
+  }
+});
+
+// Test the connection
+pool.connect()
+  .then(() => console.log('Connected to Neon PostgreSQL'))
+  .catch(err => console.error('Connection error:', err));
+
+module.exports = pool;

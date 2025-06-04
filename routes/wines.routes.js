@@ -2,96 +2,90 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares');
 const Wine = require('../models/wine');
-const mongoose = require("mongoose");
+const { spawn } = require("child_process");
+const path = require('path');
 
-// Api home page
-router.get('/', authenticateToken, async (req,res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE,OPTIONS');
 
-  const wines = await Wine.find();
-  console.log(wines);
-  res.json(wines);
-});
-
-//Get single wine from DB
-router.get('/:id', async (req,res) => {
-  const winefiltered = await Wine.findById(req.params.id);
-  res.json(winefiltered);
-});
-
-//Add new wines to the database
-router.post('/', async (req,res) => {
-  console.log(req.body);
-  const { Name, Winery, Variety, Year, Totalqualifications, Avgqualifications,Score, Marinates, Image, Region, Description} = req.body;
-  const wine = new Wine({ Name, Winery, Variety, Year, Totalqualifications, Avgqualifications, Score, Marinates, Image, Region, Description});
-  await wine.save();
-  res.json({Status: "Wine saved"});
-});
-
-//Update the wine's data
-router.put('/:id', async (req,res)=>{
-  const { Name, Winery, Variety, Year, Totalqualifications, Avgqualifications, Score, Marinates, Image, Region, Description} = req.body;
-  const wine = { Name, Winery, Variety, Year, Totalqualifications, Avgqualifications, Score, Marinates, Image, Region, Description};
-  await Wine.findByIdAndUpdate(req.params.id, wine);
-  res.json({Status: 'Wine updated'});
-});
-
-//Delete the wine
-router.delete('/:id', async (req,res)=>{
-  await Wine.findByIdAndDelete(req.params.id);
-  res.json({Status: 'Wine deleted'});
-});
-
-// Endpoint para ejecutar el script de Python
-router.post("/recommend/:name", async(req, res) => {
+// Get all wines
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    const name = req.params.name.trim(); // Eliminar espacios extra
+    console.log("Getting the wines...")
+    const wines = await Wine.find();
+    res.json(wines);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
-    console.log("Buscando vino con nombre:", name);
-
-    const wine = await Wine.findOne({ Name: name });
-
+// Get wine by ID
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const wine = await Wine.findById(req.params.id);
     if (!wine) {
-      return res.status(404).json({ message: "Vino no encontrado" });
+      return res.status(404).json({ message: 'Wine not found' });
     }
     res.json(wine);
-  } catch (err) {
-    console.error("Error en la consulta:", err);
-    res.status(500).json({ message: "Error en el servidor" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
-  //console.log("IDs en la base de datos:", wines.map(w => w._id.toString()));
-  //const winefiltered = await Wine.findById(req.params.id );
-  //console.log("winefiltered: ", winefiltered)
-  // const wines = await Wine.find();
-  //res.json(winefiltered);
-  // res.json({"id": req.params.id});
-  // const winefiltered = await Wine.findById(req.params.id);
-  // res.json({"id": winefiltered});
-
-  // if (!id) {
-  //     return res.status(400).json({ error: "El ID es requerido" });
-  // }
-
-  // const pythonProcess = spawn("python3", ["Recommend.py", id]);
-
-  // let result = "";
-  // pythonProcess.stdout.on("data", (data) => {
-  //     result += data.toString();
-  // });
-  // console.log("result: ", result)
-  // pythonProcess.stderr.on("data", (data) => {
-  //     console.error(`Error: ${data}`);
-  // });
-
-  // pythonProcess.on("close", (code) => {
-  //     if (code === 0) {
-  //         res.json({ similarWines: JSON.parse(result.trim()) });
-  //     } else {
-  //         res.status(500).json({ error: `Error ejecutando el script (code ${code})` });
-  //     }
-  // });
 });
 
+// Create new wine
+router.post('/', authenticateToken, async (req, res) => {
+  try {
+    const newWine = await Wine.create(req.body);
+    res.status(201).json(newWine);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Update wine
+router.put('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'UPDATE "public"."Wines" SET name = $1, winery = $2, variety = $3, year = $4, totalqualifications = $5, avgqualifications = $6, score = $7, image = $8, region = $9, description = $10 WHERE id = $11 RETURNING *',
+      [
+        req.body.Name,
+        req.body.Winery,
+        req.body.Variety,
+        req.body.Year,
+        req.body.Totalqualifications,
+        req.body.Avgqualifications,
+        req.body.Score,
+        req.body.Image,
+        req.body.Region,
+        req.body.Description,
+        req.params.id
+      ]
+    );
+
+    if (rows[0]) {
+      res.json(rows[0]);
+    } else {
+      res.status(404).json({ message: 'Wine not found' });
+    }
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Delete wine
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'DELETE FROM "public"."Wines" WHERE id = $1 RETURNING *',
+      [req.params.id]
+    );
+
+    if (rows[0]) {
+      res.json({ message: 'Wine deleted successfully' });
+    } else {
+      res.status(404).json({ message: 'Wine not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
 module.exports = router;
